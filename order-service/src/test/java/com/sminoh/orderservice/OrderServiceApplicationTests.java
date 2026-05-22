@@ -1,13 +1,13 @@
-package com.sminoh.spring_eda_kafka;
+package com.sminoh.orderservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class SpringEdaKafkaApplicationTests {
+class OrderServiceApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+    @Test
+    void contextLoads() {
+    }
 
 }
