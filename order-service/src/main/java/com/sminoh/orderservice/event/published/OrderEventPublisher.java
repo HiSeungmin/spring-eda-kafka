@@ -1,6 +1,5 @@
-package com.sminoh.orderservice.event;
+package com.sminoh.orderservice.event.published;
 
-import com.sminoh.common.event.OrderCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

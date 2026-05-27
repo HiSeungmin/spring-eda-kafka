@@ -1,10 +1,10 @@
 package com.sminoh.paymentservice.service;
 
-import com.sminoh.common.event.OrderCreatedEvent;
-import com.sminoh.common.event.PaymentCompletedEvent;
-import com.sminoh.common.event.PaymentFailedEvent;
+import com.sminoh.paymentservice.event.consumed.OrderCreatedEvent;
+import com.sminoh.paymentservice.event.published.PaymentCompletedEvent;
+import com.sminoh.paymentservice.event.published.PaymentFailedEvent;
 import com.sminoh.paymentservice.domain.Payment;
-import com.sminoh.paymentservice.event.PaymentEventPublisher;
+import com.sminoh.paymentservice.event.published.PaymentEventPublisher;
 import com.sminoh.paymentservice.repository.PaymentRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;

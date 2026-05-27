@@ -1,11 +1,11 @@
 package com.sminoh.orderservice;
 
-import com.sminoh.common.event.OrderCreatedEvent;
+import com.sminoh.orderservice.event.published.OrderCreatedEvent;
 import com.sminoh.orderservice.domain.Order;
 import com.sminoh.orderservice.domain.OrderStatus;
 import com.sminoh.orderservice.dto.OrderRequest;
 import com.sminoh.orderservice.dto.OrderResponse;
-import com.sminoh.orderservice.event.OrderEventPublisher;
+import com.sminoh.orderservice.event.published.OrderEventPublisher;
 import com.sminoh.orderservice.repository.OrderRepository;
 import com.sminoh.orderservice.service.OrderService;
 import org.junit.jupiter.api.DisplayName;

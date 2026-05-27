@@ -1,6 +1,5 @@
-package com.sminoh.paymentservice.event;
+package com.sminoh.paymentservice.event.consumed;
 
-import com.sminoh.common.event.OrderCreatedEvent;
 import com.sminoh.paymentservice.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

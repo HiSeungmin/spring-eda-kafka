@@ -1,4 +1,4 @@
-package com.sminoh.common.event;
+package com.sminoh.paymentservice.event.published;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

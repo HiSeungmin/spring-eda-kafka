@@ -1,4 +1,4 @@
-package com.sminoh.common.event;
+package com.sminoh.orderservice.event.published;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,4 +1,4 @@
-package com.sminoh.common.event;
+package com.sminoh.paymentservice.event.consumed;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,10 +10,9 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaymentCompletedEvent {
-    private String paymentId;
+public class OrderCreatedEvent {
     private String orderId;
     private String userId;
-    private BigDecimal amount;
-    private LocalDateTime paidAt;
+    private BigDecimal totalAmount;
+    private LocalDateTime createdAt;
 }

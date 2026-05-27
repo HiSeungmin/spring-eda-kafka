@@ -1,7 +1,5 @@
-package com.sminoh.paymentservice.event;
+package com.sminoh.paymentservice.event.published;
 
-import com.sminoh.common.event.PaymentCompletedEvent;
-import com.sminoh.common.event.PaymentFailedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

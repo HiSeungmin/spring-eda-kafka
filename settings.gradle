@@ -1,4 +1,3 @@
 rootProject.name = 'spring-eda-kafka'
-include 'common'
 include 'order-service'
 include 'payment-service'
