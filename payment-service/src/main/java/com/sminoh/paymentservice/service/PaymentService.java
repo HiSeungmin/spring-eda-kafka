@@ -22,6 +22,7 @@ public class PaymentService {
     public void processPayment(OrderCreatedEvent event){
         if(paymentRepository.existsByOrderId(event.getOrderId())){
             log.warn("event=DUPLICATE orderId={} skip", event.getOrderId());
+            return;
         }
 
         // 1. 결제 PENDING 상태 저장
