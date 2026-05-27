@@ -21,7 +21,7 @@ public class PaymentService {
 
     public void processPayment(OrderCreatedEvent event){
         if(paymentRepository.existsByOrderId(event.getOrderId())){
-            log.warn("[Payment] 중복 이벤트 무시 orderId={}", event.getOrderId());
+            log.warn("event=DUPLICATE orderId={} skip", event.getOrderId());
         }
 
         // 1. 결제 PENDING 상태 저장
@@ -46,7 +46,7 @@ public class PaymentService {
     }
 
     protected boolean simulatPaymentAPI(){
-        log.info("외부 API 결제 진행 중 ...");
+        log.info("action=PG_API_CALL status=requesting");
         return true;
     }
 
@@ -63,7 +63,7 @@ public class PaymentService {
                 payment.getPaidAt()
         ));
 
-        log.info("[결제 완료] orderId={}", payment.getOrderId());
+        log.info("action=PAYMENT_COMPLETED orderId={} amount={}", payment.getOrderId(), payment.getAmount());
     }
 
     @Transactional
@@ -77,6 +77,6 @@ public class PaymentService {
                 "PG사 결제 실패"
         ));
 
-        log.error("[결제 실패] orderId={}", payment.getOrderId());
+        log.warn("action=PAYMENT_FAILED orderId={} reason=PG_REJECT", payment.getOrderId());
     }
 }

@@ -18,7 +18,7 @@ public class OrderCreatedConsumer {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(OrderCreatedEvent event) {
-        log.info("[Kafka] consume ← order.created | orderId={}", event.getOrderId());
+        log.info("event=CONSUME topic=order.created orderId={}", event.getOrderId());
         paymentService.processPayment(event);
     }
 }

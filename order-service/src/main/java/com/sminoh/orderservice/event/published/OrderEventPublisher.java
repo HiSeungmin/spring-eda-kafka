@@ -14,6 +14,6 @@ public class OrderEventPublisher {
 
     public void publish(OrderCreatedEvent event) {
         kafkaTemplate.send(TOPIC, event.getOrderId(), event);
-        log.info("[Kafka] publish → {} | orderId={}", TOPIC, event.getOrderId());
+        log.info("event=PUBLISH topic={} orderId={}", TOPIC, event.getOrderId());
     }
 }

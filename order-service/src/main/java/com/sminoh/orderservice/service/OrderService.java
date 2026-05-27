@@ -42,7 +42,7 @@ public class OrderService {
         });
 
         orderRepository.save(order);
-        log.info("주문 저장 완료 | orderId={}", order.getId());
+        log.info("action=ORDER_CREATED orderId={} userId={} totalAmount={}", order.getId(), order.getUserId(), order.getTotalAmount());
 
         // 3. Kafka 이벤트 발행
         List<OrderCreatedEvent.OrderItem> eventItems = request.getItems().stream()

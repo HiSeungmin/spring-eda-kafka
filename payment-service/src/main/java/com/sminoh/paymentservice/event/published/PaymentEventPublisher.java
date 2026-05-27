@@ -16,11 +16,11 @@ public class PaymentEventPublisher {
 
     public void publishCompleted(PaymentCompletedEvent event) {
         kafkaTemplate.send(PAYMENT_COMPLETED, event.getOrderId(), event);
-        log.info("[Kafka] publish → {} | orderId={}", PAYMENT_COMPLETED, event.getOrderId());
+        log.info("event=PUBLISH topic={} orderId={}", PAYMENT_COMPLETED, event.getOrderId());
     }
 
     public void publishFailed(PaymentFailedEvent event) {
         kafkaTemplate.send(PAYMENT_FAILED, event.getOrderId(), event);
-        log.info("[Kafka] publish → {} | orderId={}", PAYMENT_FAILED, event.getOrderId());
+        log.info("event=PUBLISH topic={} orderId={}", PAYMENT_FAILED, event.getOrderId());
     }
 }
