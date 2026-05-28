@@ -219,6 +219,7 @@ spring-eda-kafka/
 │       ├── dto/                    # 요청/응답 DTO
 │       ├── event/
 │       │   └── published/          # 발행 이벤트 (OrderCreatedEvent)
+│       ├── outbox/                 # outbox 이벤트
 │       ├── repository/
 │       └── service/
 │
@@ -229,6 +230,7 @@ spring-eda-kafka/
 │       ├── event/
 │       │   ├── consumed/           # 구독 이벤트 (OrderCreatedEvent)
 │       │   └── published/          # 발행 이벤트 (PaymentCompletedEvent 등)
+│       ├── outbox/                 # outbox 이벤트
 │       ├── repository/
 │       └── service/
 │
@@ -291,7 +293,7 @@ IntelliJ에서 각 서비스의 `Application.java` 실행 또는 터미널에서
 curl -X POST http://localhost:8081/orders \
   -H "Content-Type: application/json" \
   -d '{
-    "userId": "user-1",
+    "userId": "user-123",
     "items": [
       {
         "productId": "product-1",
@@ -306,9 +308,9 @@ curl -X POST http://localhost:8081/orders \
 ```json
 {
   "createdAt": "2026-05-28T15:28:31.4723389",
-  "orderId": "842da73e-18dc-4f5f-bc64-44314c777360",
+  "orderId": "abc-123",
   "status": "PENDING",
-  "totalAmount": 30000,
+  "totalAmount": 15000,
   "userId": "user-123"
 }
 ```
@@ -319,7 +321,7 @@ curl -X POST http://localhost:8081/orders \
 
 ```
 [Order Service]
-action=ORDER_CREATED orderId=abc-123 userId=user-1 totalAmount=15000
+action=ORDER_CREATED orderId=abc-123 userId=user-123 totalAmount=15000
 event=PUBLISH topic=order.created orderId=abc-123
 
 [Payment Service]
