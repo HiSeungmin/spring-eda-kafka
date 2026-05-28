@@ -1,28 +1,29 @@
 package com.sminoh.orderservice.service;
 
+import com.sminoh.orderservice.event.internal.OrderCreatedAppEvent;
 import com.sminoh.orderservice.event.published.OrderCreatedEvent;
 import com.sminoh.orderservice.domain.Order;
 import com.sminoh.orderservice.domain.OrderItem;
 import com.sminoh.orderservice.dto.OrderRequest;
 import com.sminoh.orderservice.dto.OrderResponse;
-import com.sminoh.orderservice.event.published.OrderEventPublisher;
 import com.sminoh.orderservice.repository.OrderRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final OrderEventPublisher orderEventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public OrderResponse placeOrder(OrderRequest request){
+    @Transactional
+    public OrderResponse placeOrder(OrderRequest request) {
         // 1. 총 금액 계산
         BigDecimal totalAmount = request.getItems().stream()
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
@@ -30,36 +31,25 @@ public class OrderService {
 
         // 2. Order 생성
         Order order = Order.create(request.getUserId(), totalAmount);
-
-        request.getItems().forEach(orderItemRequest -> {
-            OrderItem item = OrderItem.create(
-                   order,
-                   orderItemRequest.getProductId(),
-                    orderItemRequest.getQuantity(),
-                    orderItemRequest.getPrice()
-            );
+        request.getItems().forEach(req -> {
+            OrderItem item = OrderItem.create(order, req.getProductId(), req.getQuantity(), req.getPrice());
             order.getItems().add(item);
         });
 
         orderRepository.save(order);
-        log.info("action=ORDER_CREATED orderId={} userId={} totalAmount={}", order.getId(), order.getUserId(), order.getTotalAmount());
+        log.info("action=ORDER_CREATED orderId={} userId={} totalAmount={}",
+                order.getId(), order.getUserId(), order.getTotalAmount());
 
-        // 3. Kafka 이벤트 발행
-        List<OrderCreatedEvent.OrderItem> eventItems = request.getItems().stream()
-                .map(i -> new OrderCreatedEvent.OrderItem(
-                        i.getProductId(), i.getQuantity(), i.getPrice()
-                ))
-                .toList();
-
-        OrderCreatedEvent event = new OrderCreatedEvent(
+        // 3. 도메인 이벤트 발행 (Spring 내부 이벤트)
+        OrderCreatedEvent payload = new OrderCreatedEvent(
                 order.getId(),
                 order.getUserId(),
                 order.getTotalAmount(),
-                eventItems,
-                LocalDateTime.now()
+                request.getItems().stream()
+                        .map(i -> new OrderCreatedEvent.OrderItem(i.getProductId(), i.getQuantity(), i.getPrice()))
+                        .toList()
         );
-
-        orderEventPublisher.publish(event);
+        eventPublisher.publishEvent(new OrderCreatedAppEvent(payload));
 
         return OrderResponse.from(order);
     }
