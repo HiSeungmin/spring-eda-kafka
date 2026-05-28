@@ -1,4 +1,4 @@
-# Spring EDA Kafka(미완)
+# Spring EDA Kafka
 
 Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시스템
 
