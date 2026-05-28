@@ -67,17 +67,123 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
 
 ### 1. 토픽 정의
 
+도메인 이벤트 중심으로 토픽을 분리했습니다.
+
+| Topic               | Producer         | Consumer        | 설명        |
+| ------------------- | ---------------- | --------------- | --------- |
+| `order.created`     | Order Service    | Payment, Stock  | 주문 생성 이벤트 |
+| `payment.completed` | Payment Service  | Order, Delivery | 결제 완료 이벤트 |
+| `payment.failed`    | Payment Service  | Order           | 결제 실패 이벤트 |
+
+
+#### 설계 의도
+
+* 토픽명을 “도메인.행위” 형식으로 통일하여 이벤트 의미를 명확하게 표현
+* 서비스 간 직접 호출 대신 이벤트 기반 비동기 통신 사용
+* Consumer가 Producer 구현을 몰라도 되도록 느슨한 결합 유지
+* 이벤트 추가 시 기존 서비스 수정 없이 Consumer만 확장 가능
+
+---
 
 ### 2. 토픽 기본 설정
 
+Kafka 토픽은 개발 환경 기준 아래와 같이 설정했습니다.
 
+| 설정                 | 값        | 설명                |
+| ------------------ | -------- | ----------------- |
+| Partitions         | 3        | Consumer 확장 고려    |
+| Replication Factor | 1        | 로컬 개발 환경 기준       |
+| Ack Mode           | all      | 메시지 유실 방지         |
+| Auto Offset Reset  | earliest | 초기 구독 시 전체 이벤트 조회 |
 
-### 3. outbox 패턴
+#### 설계 의도
 
+* 파티션을 분리해 Consumer Scale-Out 가능
+* 운영 환경에서는 Replication Factor를 3 이상으로 확장 예정
+* `acks=all` 설정으로 브로커 장애 상황에서도 데이터 신뢰성 확보
+* 동일 `orderId` 기준으로 Key를 지정하여 이벤트 순서 보장
+
+---
+
+### 3. Outbox 패턴
+
+주문 저장과 이벤트 발행 간 데이터 정합성을 보장하기 위해 Outbox 패턴을 적용했습니다.
+
+#### 문제 상황
+
+일반적인 Kafka 발행 방식에서는 아래 문제가 발생할 수 있습니다.
+
+```text
+1. DB 저장 성공
+2. Kafka 발행 실패
+→ 데이터와 이벤트 상태 불일치 발생
+```
+
+이 경우 주문은 생성되었지만 다른 서비스는 이벤트를 받지 못하는 문제가 발생합니다.
+
+#### 해결 방식
+
+트랜잭션 내부에서 Outbox 이벤트를 먼저 저장하고, 트랜잭션 커밋 이후 Kafka 이벤트를 발행하도록 구현했습니다.
+
+1. 주문 저장
+2. BEFORE_COMMIT 단계에서 Outbox 이벤트 저장
+3. Transaction Commit
+4. AFTER_COMMIT 단계에서 Kafka 이벤트 발행
+5. 발행 성공 시 Outbox 상태 업데이트
+6. 발행 실패 이벤트는 배치 작업으로 재처리
+
+#### 구현 방식 비교
+
+| 방식                | 장점                | 단점                        |
+| ----------------- | ----------------- | ------------------------- |
+| Polling Publisher | 구현 단순             | Polling 주기만큼 지연 발생        |
+| CDC(Debezium)     | 실시간 처리            | Kafka Connect 등 운영 복잡도 증가 |
+| Event Listener    | Spring 친화적, 구현 간단 | 애플리케이션 의존적                |
+
+#### 최종 선택
+
+현재 프로젝트는 학습 및 로컬 환경 중심이므로 `TransactionalEventListener` 기반 Event Listener 방식을 채택했습니다.
+
+```java
+@TransactionalEventListener(
+    phase = TransactionPhase.AFTER_COMMIT
+)
+```
+
+#### 기대 효과
+
+* DB 저장과 이벤트 발행 간 정합성 보장
+* 트랜잭션 실패 시 이벤트 미발행 보장
+* Kafka 장애 상황에서도 재처리 가능 구조 확보
+
+---
 
 ### 4. 멱등성 보장
 
-Kafka의 At-Least-Once 보장 특성상 중복 이벤트가 발생할 수 있어, Consumer에서 `eventId` 기반 멱등성 처리를 합니다.
+Kafka는 At-Least-Once 전달 방식을 사용하므로 동일 이벤트가 중복 전달될 수 있습니다.
+
+이를 방지하기 위해 Consumer에서 `eventId` 기반 멱등성 처리를 적용합니다.
+
+#### 처리 방식
+
+```text
+1. 이벤트 수신
+2. eventId 중복 여부 확인
+3. 이미 처리된 이벤트면 Skip
+4. 미처리 이벤트만 비즈니스 로직 수행
+```
+
+#### 설계 의도
+
+* Consumer 재시작 상황에서도 중복 처리 방지
+* Kafka 재전송 상황 대응
+* 결제/재고 차감 같은 중요 로직의 중복 수행 방지
+
+#### 향후 개선 예정
+
+* Redis 기반 이벤트 중복 캐시 적용
+* processed_events 테이블 관리
+* Exactly-Once 처리 전략 검토
 
 ## 🛠 기술 스택
 
