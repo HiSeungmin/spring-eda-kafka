@@ -6,6 +6,7 @@ import com.sminoh.paymentservice.event.consumed.OrderCreatedEvent;
 import com.sminoh.paymentservice.event.published.PaymentCompletedEvent;
 import com.sminoh.paymentservice.event.published.PaymentEventPublisher;
 import com.sminoh.paymentservice.event.published.PaymentFailedEvent;
+import com.sminoh.paymentservice.infra.PgClient;
 import com.sminoh.paymentservice.repository.PaymentRepository;
 import com.sminoh.paymentservice.service.PaymentService;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,9 @@ public class PaymentServiceTest {
     @Mock
     private PaymentEventPublisher paymentEventPublisher;
 
+    @Mock
+    PgClient pgClient;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -41,6 +45,7 @@ public class PaymentServiceTest {
 
         when(paymentRepository.existsByOrderId("order-1")).thenReturn(false);
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(pgClient.pay(any(), any())).thenReturn(true);
 
         // when
         paymentService.processPayment(event);
@@ -49,6 +54,25 @@ public class PaymentServiceTest {
         verify(paymentRepository, times(2)).save(any(Payment.class));
         verify(paymentEventPublisher, times(1)).publishCompleted(any(PaymentCompletedEvent.class));
         verify(paymentEventPublisher, never()).publishFailed(any(PaymentFailedEvent.class));
+    }
+
+    @Test
+    @DisplayName("결제 실패 시 Payment가 FAILED 상태로 저장되고 PaymentFailedEvent가 발행된다")
+    void processPayment_fail() {
+        // given
+        OrderCreatedEvent event = new OrderCreatedEvent("order-1", "user-1", new BigDecimal("15000"), LocalDateTime.now());
+
+        when(paymentRepository.existsByOrderId("order-1")).thenReturn(false);
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(pgClient.pay(any(), any())).thenReturn(false);
+
+        // when
+        paymentService.processPayment(event);
+
+        // then
+        verify(paymentRepository, times(2)).save(any(Payment.class));
+        verify(paymentEventPublisher, times(1)).publishFailed(any(PaymentFailedEvent.class));
+        verify(paymentEventPublisher, never()).publishCompleted(any(PaymentCompletedEvent.class));
     }
 
     @Test
