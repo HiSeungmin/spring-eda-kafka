@@ -29,5 +29,10 @@ springdotenv:
   location: payment-service/.env
 
 logging:
+  file:
+    name: payment-service/logs/payment-service.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
   level:
-    org.apache.kafka: INFO
+    root: WARN
+    com.sminoh: INFO
