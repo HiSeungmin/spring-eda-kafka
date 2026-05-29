@@ -4,7 +4,7 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
 
 ## 📌 프로젝트 개요
 
-마이크로서비스 간 비동기 통신을 Kafka로 처리하는 주문 처리 시스템입니다. 주문, 결제, 재고 도메인을 독립된 서비스로 분리하고, 도메인 이벤트로 통신하여 서비스 간 느슨한 결합을 유지합니다.
+마이크로서비스 간 비동기 통신을 Kafka로 처리하는 주문 처리 시스템입니다. 주문, 결제 서비스를 중심으로 구현되어 있으며, 도메인 이벤트로 통신하여 서비스 간 느슨한 결합을 유지합니다.
 
 ## 🏗 아키텍처
 
@@ -23,9 +23,9 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
                   ┌────────────────────────────┼────────────────────────┐
                   │                            │                        │
                   ↓                            ↓                        ↓
-          ┌──────────────┐           ┌──────────────┐         ┌──────────────┐
-          │Payment Service│          │ Stock Service│         │Notification..│
-          └──────┬───────┘           └──────────────┘         └──────────────┘
+          ┌───────────────┐           ┌──────────────┐         ┌──────────────┐
+          │Payment Service│           │ Stock Service│         │Notification..│
+          └──────┬────────┘           └──────────────┘         └──────────────┘
                  │ payment.completed
                  │ payment.failed
                  ↓
@@ -35,7 +35,7 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
                  │
                  ↓
           ┌────────────────┐
-          │Delivery Service│
+          │  Order Service │
           └────────────────┘
 ```
 
@@ -54,54 +54,62 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
 3. Order Service ← payment.completed
    └─ 주문 상태 업데이트 (CONFIRMED)
 
-4. Stock Service ← order.created
-   ├─ 재고 차감
-   └─ stock.decreased 이벤트 발행
-
-5. Delivery Service ← payment.completed
-   ├─ 배송 시작
-   └─ delivery.started 이벤트 발행
 ```
 
 ## 🎯 설계 결정
 
-### 1. 토픽 정의
-
-도메인 이벤트 중심으로 토픽을 분리했습니다.
-
-| Topic               | Producer         | Consumer        | 설명        |
-| ------------------- | ---------------- | --------------- | --------- |
-| `order.created`     | Order Service    | Payment, Stock  | 주문 생성 이벤트 |
-| `payment.completed` | Payment Service  | Order, Delivery | 결제 완료 이벤트 |
-| `payment.failed`    | Payment Service  | Order           | 결제 실패 이벤트 |
-
-
-#### 설계 의도
-
-* 토픽명을 “도메인.행위” 형식으로 통일하여 이벤트 의미를 명확하게 표현
-* 서비스 간 직접 호출 대신 이벤트 기반 비동기 통신 사용
-* Consumer가 Producer 구현을 몰라도 되도록 느슨한 결합 유지
-* 이벤트 추가 시 기존 서비스 수정 없이 Consumer만 확장 가능
-
----
-
-### 2. 토픽 기본 설정
+### 1. Kafka 기본 설정
 
 Kafka 토픽은 개발 환경 기준 아래와 같이 설정했습니다.
 
-| 설정                 | 값        | 설명                |
-| ------------------ | -------- | ----------------- |
-| Partitions         | 3        | Consumer 확장 고려    |
-| Replication Factor | 1        | 로컬 개발 환경 기준       |
-| Ack Mode           | all      | 메시지 유실 방지         |
-| Auto Offset Reset  | earliest | 초기 구독 시 전체 이벤트 조회 |
+| 설정                 | 값        | 설명                      |
+| ------------------ | -------- |-------------------------|
+| Partitions         | 3        | 개발 환경 기준(운영 환경은 최대 40개) |
+| Replication Factor | 1        | 로컬 개발 환경 기준(운영 환경은 3)   |
+| Ack Mode           | all      | 메시지 유실 방지               |
+| Auto Offset Reset  | earliest | 초기 구독 시 전체 이벤트 조회       |
+
+
 
 #### 설계 의도
 
-* 파티션을 분리해 Consumer Scale-Out 가능
-* 운영 환경에서는 Replication Factor를 3 이상으로 확장 예정
-* `acks=all` 설정으로 브로커 장애 상황에서도 데이터 신뢰성 확보
-* 동일 `orderId` 기준으로 Key를 지정하여 이벤트 순서 보장
+[처리량 기반 파티션 설계]
+
+- 목표 트래픽 규모: 2,000 TPS
+- 결제 서비스는 외부 API 호출을 포함하므로 컨슈머 1개당 처리량을 보수적으로 100 TPS로 산정
+- 파티션 수 계산: 2,000 TPS / 100 TPS = 20 파티션 × 1.5배 ~ 2배 여유 = 30 ~ 40 파티션
+- 컨슈머 수는 파티션 수와 동일하게 40개 (인스턴스 수에 따라 분배 조정)
+- 파티션은 줄일 수 없으므로 운영 환경에서는 초기부터 넉넉하게 설정
+
+[신뢰성 설계]
+
+- `acks=all` 설정으로 브로커 장애 상황에서도 데이터 유실 방지
+- 운영 환경 Replication Factor는 3, 개발 환경에서는 1로 구분
+
+[순서 보장]
+
+- 동일 orderId를 Kafka 메시지 Key로 지정하여 같은 주문의 이벤트는 항상 동일 파티션으로 라우팅
+- 주문 생성 → 결제 요청 → 결제 완료 흐름의 순서 일관성 보장
+
+---
+
+### 2. 토픽 정의
+
+도메인 이벤트 중심으로 토픽을 분리했습니다.
+
+| Topic               | Producer         | Consumer | 설명        |
+| ------------------- | ---------------- |----------| --------- |
+| `order.created`     | Order Service    | Payment  | 주문 생성 이벤트 |
+| `payment.completed` | Payment Service  | Order    | 결제 완료 이벤트 |
+| `payment.failed`    | Payment Service  | Order    | 결제 실패 이벤트 |
+
+
+#### 설계 의도
+
+- 토픽명을 “도메인.행위” 형식으로 통일하여 이벤트 의미를 명확하게 표현
+- 서비스 간 직접 호출 대신 이벤트 기반 비동기 통신 사용
+- Consumer가 Producer 구현을 몰라도 되도록 느슨한 결합 유지
+- 이벤트 추가 시 기존 서비스 수정 없이 Consumer만 확장 가능
 
 ---
 
@@ -121,33 +129,40 @@ Kafka 토픽은 개발 환경 기준 아래와 같이 설정했습니다.
 
 이 경우 주문은 생성되었지만 다른 서비스는 이벤트를 받지 못하는 문제가 발생합니다.
 
-#### 해결 방식
+#### outbox 구현 방식 비교
 
-트랜잭션 내부에서 Outbox 이벤트를 먼저 저장하고, 트랜잭션 커밋 이후 Kafka 이벤트를 발행하도록 구현했습니다.
+| 방식                   | 장점                | 단점                        |
+|----------------------| ----------------- | ------------------------- |
+| 1. Polling Publisher | 구현 단순             | Polling 주기만큼 지연 발생        |
+| 2. Event Listener    | Spring 친화적, 구현 간단 | 애플리케이션 의존적                |
+| 3. CDC(Debezium)     | 실시간 처리            | Kafka Connect 등 운영 복잡도 증가 |
+
+#### 최종 선택
+
+CDC(Debezium)은 운영 인프라 부담으로 인해 `TransactionalEventListener` 기반 Event Listener 방식을 채택했습니다.
+
+#### 이벤트 발행 흐름
 
 1. 주문 저장
 2. BEFORE_COMMIT 단계에서 Outbox 이벤트 저장
 3. Transaction Commit
 4. AFTER_COMMIT 단계에서 Kafka 이벤트 발행
 5. 발행 성공 시 Outbox 상태 업데이트
-6. 발행 실패 이벤트는 배치 작업으로 재처리
-
-#### 구현 방식 비교
-
-| 방식                | 장점                | 단점                        |
-| ----------------- | ----------------- | ------------------------- |
-| Polling Publisher | 구현 단순             | Polling 주기만큼 지연 발생        |
-| CDC(Debezium)     | 실시간 처리            | Kafka Connect 등 운영 복잡도 증가 |
-| Event Listener    | Spring 친화적, 구현 간단 | 애플리케이션 의존적                |
-
-#### 최종 선택
-
-현재 프로젝트는 학습 및 로컬 환경 중심이므로 `TransactionalEventListener` 기반 Event Listener 방식을 채택했습니다.
+6. 발행에 실패한 이벤트는 배치 작업으로 재처리
 
 ```java
-@TransactionalEventListener(
-    phase = TransactionPhase.AFTER_COMMIT
-)
+@TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+public void record(){
+    // outbox 테이블 저장
+}
+```
+
+```java
+@Async("outboxTaskExecutor")
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void send(OrderCreatedAppEvent appEvent){
+    // kafka 이벤트 발행
+}
 ```
 
 #### 기대 효과
@@ -160,30 +175,39 @@ Kafka 토픽은 개발 환경 기준 아래와 같이 설정했습니다.
 
 ### 4. 멱등성 보장
 
-Kafka는 At-Least-Once 전달 방식을 사용하므로 동일 이벤트가 중복 전달될 수 있습니다.
+Kafka는 At-Most-Once, At-Least-Once, Exactly-Once 세 가지 전달 보장을 지원하지만, 외부 시스템(DB)과의 통합에서는 Exactly-Once가 Kafka 내부에서만 유효하다는 한계가 있습니다. 따라서 **At-Least-Once + Consumer 멱등성** 조합이 업계 표준 패턴이며, 본 시스템도 이 방식을 따릅니다.
 
-이를 방지하기 위해 Consumer에서 `eventId` 기반 멱등성 처리를 적용합니다.
+#### At-Least-Once 채택 이유
 
-#### 처리 방식
+- Producer 멱등성(`enable.idempotence=true`)으로 Kafka 내 중복 발행 방지
+- Outbox 패턴으로 발행 신뢰성 확보 (유실 방지)
+- Exactly-Once는 외부 시스템 통합 시 보장이 깨지고 성능/복잡도 비용이 큼
+- "At-Least-Once + Consumer 멱등성"으로 실질적 Exactly-Once 효과 달성
+
+#### Consumer 멱등성 처리 방식
+
+이벤트의 `eventId`를 키로 처리 이력을 추적하여 중복 수신을 차단합니다.
 
 ```text
 1. 이벤트 수신
-2. eventId 중복 여부 확인
-3. 이미 처리된 이벤트면 Skip
-4. 미처리 이벤트만 비즈니스 로직 수행
+2. processed_events 테이블에서 eventId 존재 여부 확인
+3. 이미 처리된 eventId면 skip
+4. 미처리 이벤트만 비즈니스 로직 수행 + 처리 이력 저장 (같은 트랜잭션)
 ```
+
+#### 중복 발생 시나리오 대응
+
+| 시나리오          | 원인 | 대응 |
+|---------------|------|------|
+| Producer 재발행  | Outbox 배치가 미발행 건 재시도 | eventId 동일 → Consumer skip |
+| Consumer 재시작  | 처리 후 offset 커밋 직전 다운 | eventId 동일 → Consumer skip |
+| Consumer 재수신 | 네트워크 장애 등 At-Least-Once 특성 | eventId 동일 → Consumer skip |
 
 #### 설계 의도
 
-* Consumer 재시작 상황에서도 중복 처리 방지
-* Kafka 재전송 상황 대응
-* 결제/재고 차감 같은 중요 로직의 중복 수행 방지
+- 결제/재고 차감처럼 중복 실행 시 데이터 정합성이 깨지는 비즈니스 로직 보호
+- 비즈니스 처리와 멱등성 기록을 **같은 트랜잭션**에 묶어 원자성 보장
 
-#### 향후 개선 예정
-
-* Redis 기반 이벤트 중복 캐시 적용
-* processed_events 테이블 관리
-* Exactly-Once 처리 전략 검토
 
 ## 🛠 기술 스택
 
@@ -242,8 +266,8 @@ spring-eda-kafka/
 
 ### 1. 사전 요구사항
 
-- Java 25
-- Docker & Docker Compose
+- Java 25 (LTS)
+- Docker Compose (로컬 실행 환경)
 
 ### 2. 환경 변수 설정
 
@@ -271,7 +295,7 @@ PAYMENT_DB_PASSWORD=postgres
 docker-compose up -d
 ```
 
-Kafka(9092), PostgreSQL(5432, 5433)가 기동됩니다.
+Kafka(9092), PostgreSQL(5432, 5433)가 실행됩니다.
 
 ### 4. 애플리케이션 실행
 
@@ -290,7 +314,7 @@ IntelliJ에서 각 서비스의 `Application.java` 실행 또는 터미널에서
 ### 주문 생성
 
 ```bash
-curl -X POST http://localhost:8081/orders \
+curl -X POST http://localhost:8081/api/v1/orders \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "user-123",
@@ -317,50 +341,63 @@ curl -X POST http://localhost:8081/orders \
 
 ### 흐름 확인
 
-주문 후 콘솔 로그에서 이벤트 흐름을 확인할 수 있습니다.
+주문 후 각 서비스의 로그 파일에서 이벤트 흐름을 확인할 수 있습니다.
 
+**[Order Service] order-service/logs/order-service.log**
 ```
-[Order Service]
-action=ORDER_CREATED orderId=abc-123 userId=user-123 totalAmount=15000
-event=PUBLISH topic=order.created orderId=abc-123
+action=ORDER_CREATED orderId=ce4d4c3a... userId=user-123 totalAmount=30000
+action=OUTBOX_RECORDED type=OrderCreated eventId=716bcd9f... orderId=ce4d4c3a...
+event=PUBLISH topic=order.created eventId=716bcd9f... orderId=ce4d4c3a...
+```
 
-[Payment Service]
-event=CONSUME topic=order.created orderId=abc-123
-action=PG_API_CALL status=requesting
-action=PAYMENT_COMPLETED orderId=abc-123 amount=15000
-event=PUBLISH topic=payment.completed orderId=abc-123
+**[Payment Service] payment-service/logs/payment-service.log**
 ```
+event=CONSUME topic=order.created orderId=ce4d4c3a...
+action=PAYMENT_COMPLETED orderId=ce4d4c3a... amount=30000
+action=OUTBOX_RECORDED type=PaymentCompleted eventId=aadbce66... orderId=ce4d4c3a...
+event=PUBLISH topic=payment.completed eventId=aadbce66... orderId=ce4d4c3a...
+```
+
+**[Order Service] 결제 결과 수신**
+```
+event=CONSUME topic=payment.completed orderId=ce4d4c3a...
+action=ORDER_COMPLETED orderId=ce4d4c3a...
+```
+
+### kafka 이벤트 생성 확인
+
+토픽 목록 확인
+```
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
+```
+__consumer_offsets
+order.created
+payment.completed
+```
+
+메시지 확인
+```
+docker exec -it kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic order.created --from-beginning
+```
+```
+{"orderId":"842da73e-18dc-4f5f-bc64-44314c777360","userId":"user-123","totalAmount":30000,"items":[{"productId":"product-001","quantity":2,"price":15000}],"createdAt":"2026-05-28T15:28:31.5136482","eventId":"538f9036-49ab-46cb-a28a-3d9fd8aae5d9"}
+```
+
+
 
 ### DB 확인
 
 ```bash
 # Order DB
-docker exec -it <order-db-container> psql -U postgres -d order_db -c "SELECT * FROM orders;"
+docker exec -it order-db psql -U postgres -d order_db -c "SELECT * FROM orders;"
 
 # Payment DB
-docker exec -it <payment-db-container> psql -U postgres -d payment_db -c "SELECT * FROM payments;"
+docker exec -it payment-db psql -U postgres -d payment_db -c "SELECT * FROM payments;"
 ```
-
-### 로그 흐름 추적
-
-`orderId`로 grep하면 전체 흐름이 한 번에 보입니다.
-
-```bash
-grep "orderId=abc-123" logs/*.log
-```
-
-## 📋 진행 현황
-
-- [x] Order Service - 주문 생성 + 이벤트 발행
-- [x] Payment Service - 결제 처리 + 이벤트 구독 및 발행
-- [x] 로그 포맷 표준화 (event=, action= 접두어)
-- [x] 이벤트 발행 테스트 코드 작성
-- [x] Outbox Pattern (이벤트 발행 신뢰성)
-- [ ] 멱등성 검증 및 테스트
-- [ ] JAVA 25 문법 적용
-- [ ] 예외 처리 (Business Exception)
 
 
 ## 📚 참고
 
 - [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html)
+- 
