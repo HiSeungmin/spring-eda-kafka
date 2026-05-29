@@ -53,4 +53,22 @@ public class OrderService {
 
         return OrderResponse.from(order);
     }
+
+    @Transactional
+    public void completeOrder(String orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("주문을 찾을 수 없습니다. orderId=" + orderId));
+        order.confirm();
+        log.info("action=ORDER_COMPLETED orderId={}", orderId);
+    }
+
+    @Transactional
+    public void failOrder(String orderId, String reason) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("주문을 찾을 수 없습니다. orderId=" + orderId));
+
+
+        order.cancel();
+        log.info("action=ORDER_FAILED orderId={} reason={}", orderId, reason);
+    }
 }

@@ -1,5 +1,6 @@
-package com.sminoh.orderservice.outbox;
+package com.sminoh.paymentservice.outbox;
 
+import com.sminoh.paymentservice.outbox.OutboxEvent;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +25,7 @@ public class OutboxRelayScheduler {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(1);
         List<OutboxEvent> targets = outboxEventRepository.findRetryableBefore(threshold);
 
-        if(targets.isEmpty()){
+        if (targets.isEmpty()) {
             return;
         }
 

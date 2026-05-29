@@ -19,7 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class OutboxSendListener {
 
     private static final String TOPIC = "order.created";
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaTemplate<String, Object> stringKafkaTemplate;
     private final OutboxEventRepository outboxEventRepository;
 
     @Async("outboxTaskExecutor")
@@ -29,7 +29,7 @@ public class OutboxSendListener {
         OrderCreatedEvent payload = appEvent.getPayload();
 
         try {
-            kafkaTemplate.send(TOPIC, payload.getOrderId(), payload);
+            stringKafkaTemplate.send(TOPIC, payload.getOrderId(), payload);
 
             log.info("event=PUBLISH topic={} eventId={} orderId={}",
                     TOPIC, payload.getEventId(), payload.getOrderId());

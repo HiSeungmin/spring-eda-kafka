@@ -1,6 +1,8 @@
 package com.sminoh.paymentservice.service;
 
 import com.sminoh.paymentservice.event.consumed.OrderCreatedEvent;
+import com.sminoh.paymentservice.event.internal.PaymentCompletedAppEvent;
+import com.sminoh.paymentservice.event.internal.PaymentFailedAppEvent;
 import com.sminoh.paymentservice.event.published.PaymentCompletedEvent;
 import com.sminoh.paymentservice.event.published.PaymentFailedEvent;
 import com.sminoh.paymentservice.domain.Payment;
@@ -10,6 +12,7 @@ import com.sminoh.paymentservice.repository.PaymentRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -17,7 +20,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PaymentService {
     private final PaymentRepository paymentRepository;
-    private final PaymentEventPublisher paymentEventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
     private final PgClient pgClient;
 
 
@@ -54,15 +57,17 @@ public class PaymentService {
         payment.complete();
         paymentRepository.save(payment);
 
-        paymentEventPublisher.publishCompleted(new PaymentCompletedEvent(
+        PaymentCompletedEvent payload = new PaymentCompletedEvent(
                 payment.getId(),
                 payment.getOrderId(),
                 payment.getUserId(),
                 payment.getAmount(),
                 payment.getPaidAt()
-        ));
+        );
+        applicationEventPublisher.publishEvent(new PaymentCompletedAppEvent(payload));
 
-        log.info("action=PAYMENT_COMPLETED orderId={} amount={}", payment.getOrderId(), payment.getAmount());
+        log.info("action=PAYMENT_COMPLETED orderId={} amount={}",
+                payment.getOrderId(), payment.getAmount());
     }
 
     @Transactional
@@ -70,12 +75,14 @@ public class PaymentService {
         payment.fail();
         paymentRepository.save(payment);
 
-        paymentEventPublisher.publishFailed(new PaymentFailedEvent(
+        PaymentFailedEvent payload = new PaymentFailedEvent(
                 payment.getOrderId(),
                 payment.getUserId(),
                 "PG사 결제 실패"
-        ));
+        );
+        applicationEventPublisher.publishEvent(new PaymentFailedAppEvent(payload));
 
-        log.warn("action=PAYMENT_FAILED orderId={} reason=PG_REJECT", payment.getOrderId());
+        log.warn("action=PAYMENT_FAILED orderId={} reason=PG_REJECT",
+                payment.getOrderId());
     }
 }

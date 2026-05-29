@@ -41,10 +41,19 @@ public class Order {
     }
 
     public void confirm(){
+        if (this.status == OrderStatus.CONFIRMED) {
+            return;
+        }
+        if (this.status != OrderStatus.PENDING) {
+            throw new IllegalStateException("PENDING 상태만 CONFIRMED 가능. 현재: " + this.status);
+        }
         this.status = OrderStatus.CONFIRMED;
     }
 
     public void cancel(){
+        if (this.status == OrderStatus.CANCELLED) {
+            return;
+        }
         this.status = OrderStatus.CANCELLED;
     }
 }
