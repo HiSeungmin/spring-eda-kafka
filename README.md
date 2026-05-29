@@ -56,6 +56,8 @@ Spring Boot와 Kafka 기반의 이벤트 드리븐 아키텍처(EDA) 주문 시�
 
 ```
 
+---
+
 ## 🎯 설계 결정
 
 ### 1. Kafka 기본 설정
@@ -208,6 +210,7 @@ Kafka는 At-Most-Once, At-Least-Once, Exactly-Once 세 가지 전달 보장을 �
 - 결제/재고 차감처럼 중복 실행 시 데이터 정합성이 깨지는 비즈니스 로직 보호
 - 비즈니스 처리와 멱등성 기록을 **같은 트랜잭션**에 묶어 원자성 보장
 
+---
 
 ## 🛠 기술 스택
 
@@ -265,6 +268,8 @@ spring-eda-kafka/
 └── notification-service/           # 알림 서비스 (port 8084) [예정]
 ```
 
+---
+
 ## 🚀 실행 방법
 
 ### 1. 사전 요구사항
@@ -311,6 +316,8 @@ IntelliJ에서 각 서비스의 `Application.java` 실행 또는 터미널에서
 # Payment Service (별도 터미널)
 ./gradlew :payment-service:bootRun
 ```
+
+---
 
 ## 🧪 API 테스트
 
@@ -399,6 +406,7 @@ docker exec -it order-db psql -U postgres -d order_db -c "SELECT * FROM orders;"
 docker exec -it payment-db psql -U postgres -d payment_db -c "SELECT * FROM payments;"
 ```
 
+---
 
 ## 📚 참고
 
